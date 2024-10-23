@@ -1,3 +1,4 @@
 # squidscan
-Quickly scan a machine via squid, adjust source to change ips, ports etc. This is just a quick and dirty poc but it's way faster than nmap.
-install dependicies with : go mod tidy , and build the tool with : go build
+Quickly scan a machine via Squid proxy. Edit `squidscan.go` to change IP address and port. This does not work with **credentials**. This is just a quick and dirty poc but it's way faster than nmap.
+# Build
+`go mod init squidscan` then `go mod tidy` and build with `go build`
