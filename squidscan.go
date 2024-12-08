@@ -2,11 +2,13 @@ package main
 
 import (
         "encoding/base64"
+        "flag"
         "fmt"
         "io/ioutil"
         "net"
         "net/http"
         "net/url"
+        "os"
         "strings"
         "sync"
         "time"
@@ -15,19 +17,28 @@ import (
 )
 
 var (
-        proxyURL   = "http://192.168.1.3:3128" // adjust proxy IP & port
-        numWorkers = 100                       // adjust workers
-        numPorts   = 65535                     // adjust ports
-        username   = "username"           // replace with actual username
-        password   = "password"           // replace with actual password
+        numWorkers = 100  // adjust workers
+        numPorts   = 65535 // adjust ports
 )
 
 func main() {
-        proxyURL, err := url.Parse(proxyURL)
+        proxy := flag.String("proxy", "", "Proxy URL (required), e.g., http://192.168.1.3:3128")
+        username := flag.String("username", "", "Username for proxy authentication (optional)")
+        password := flag.String("password", "", "Password for proxy authentication (optional)")
+        flag.Parse()
+
+        if *proxy == "" {
+                fmt.Println("Error: -proxy argument is required (e.g., -proxy http://192.168.1.3:3128)")
+                flag.Usage()
+                os.Exit(1)
+        }
+
+        proxyURL, err := url.Parse(*proxy)
         if err != nil {
                 fmt.Printf("Failed to parse proxy URL: %v\n", err)
                 return
         }
+
         transport := &http.Transport{
                 Proxy: http.ProxyURL(proxyURL),
                 DialContext: (&net.Dialer{
@@ -35,12 +46,14 @@ func main() {
                         KeepAlive: 3 * time.Second,
                 }).DialContext,
         }
+
         client := &http.Client{Transport: transport}
         openPorts := make([]int, 0)
 
         bar := pb.StartNew(numPorts)
         sem := make(chan struct{}, numWorkers)
         var wg sync.WaitGroup
+
         for port := 1; port <= numPorts; port++ {
                 wg.Add(1)
                 go func(p int) {
@@ -56,7 +69,10 @@ func main() {
                         if err != nil {
                                 return
                         }
-                        req.Header.Add("Proxy-Authorization", basicAuth(username, password))
+
+                        if *username != "" && *password != "" {
+                                req.Header.Add("Proxy-Authorization", basicAuth(*username, *password))
+                        }
 
                         r, err := client.Do(req)
                         if err != nil {
@@ -75,6 +91,7 @@ func main() {
 
                 }(port)
         }
+
         wg.Wait()
         bar.Finish()
 
@@ -84,7 +101,6 @@ func main() {
         }
 }
 
-// basicAuth generates the Base64-encoded string for Basic Authentication.
 func basicAuth(username, password string) string {
         auth := username + ":" + password
         return "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
